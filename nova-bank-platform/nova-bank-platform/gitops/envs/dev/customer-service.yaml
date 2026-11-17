@@ -1,0 +1,23 @@
+environment: dev
+image:
+  repository: __ECR_REGISTRY__/novabank/customer-service
+  tag: "0"
+replicaCount: 1
+containerPort: 8081
+service: {port: 8081}
+env:
+  DB_PORT: "5432"
+  DB_NAME: customerdb
+  JWT_EXPIRATION_SECONDS: "3600"
+  LOGGING_LEVEL_ROOT: WARN
+externalSecret:
+  enabled: true
+  data:
+    - {secretKey: DB_HOST, key: novabank/dev/db, property: host}
+    - {secretKey: DB_USERNAME, key: novabank/dev/db, property: username}
+    - {secretKey: DB_PASSWORD, key: novabank/dev/db, property: password}
+    - {secretKey: JWT_SECRET, key: novabank/dev/jwt, property: secret}
+podSecurityContext: {runAsNonRoot: true, runAsUser: 100, runAsGroup: 101, seccompProfile: {type: RuntimeDefault}}
+autoscaling: {enabled: false, minReplicas: 3, maxReplicas: 6, cpuUtilization: 70}
+networkPolicy:
+  allowFromApps: [frontend, account-service]

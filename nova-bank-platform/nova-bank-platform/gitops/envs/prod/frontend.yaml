@@ -1,0 +1,18 @@
+environment: prod
+image:
+  repository: __ECR_REGISTRY__/novabank/frontend
+  tag: "0"
+replicaCount: 2
+containerPort: 8080
+service: {port: 80}
+probes: {type: http, path: /, initialDelaySeconds: 5, periodSeconds: 10, failureThreshold: 6}
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {memory: 128Mi}
+# Matches the live manifest; tighten (runAsNonRoot + drop ALL) once the image's USER is confirmed numeric
+podSecurityContext: {runAsNonRoot: false, seccompProfile: {type: RuntimeDefault}}
+securityContext: {allowPrivilegeEscalation: false, capabilities: null}
+ingress: {enabled: true, className: alb, path: /, healthcheckPath: /}
+autoscaling: {enabled: false}
+networkPolicy:
+  allowFromCidrs: ["10.20.0.0/16"]   # ALB (pod-IP target mode) lives in the VPC

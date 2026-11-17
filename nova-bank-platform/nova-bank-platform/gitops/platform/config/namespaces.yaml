@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: novabank-dev, labels: {environment: dev}}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: novabank-prod, labels: {environment: prod}}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: monitoring}

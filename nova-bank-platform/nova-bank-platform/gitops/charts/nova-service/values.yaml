@@ -1,0 +1,66 @@
+# Defaults shared by every service. Per-env overrides live in envs/<env>/<service>.yaml
+image:
+  repository: ""            # <account>.dkr.ecr.<region>.amazonaws.com/novabank/<service>
+  tag: ""                   # git SHA, bumped by Jenkins (dev) / PR (higher envs)
+  pullPolicy: IfNotPresent
+
+containerPort: 8080
+service:
+  port: 8080
+replicaCount: 2
+
+env: {}                     # plain config -> ConfigMap
+
+externalSecret:             # secrets -> AWS Secrets Manager via External Secrets Operator
+  enabled: false
+  store: aws-secrets-manager
+  refreshInterval: 1h
+  data: []                  # - {secretKey: DB_PASSWORD, key: novabank/prod/db, property: password}
+
+probes:
+  type: tcp                 # tcp | http
+  path: /
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 6
+
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {memory: 512Mi}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile: {type: RuntimeDefault}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities: {drop: ["ALL"]}
+
+# Zero-downtime: pod keeps serving while the load balancer deregisters it
+preStopSleepSeconds: 10
+terminationGracePeriodSeconds: 40
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  cpuUtilization: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: false
+  className: alb
+  path: /
+  healthcheckPath: /
+
+networkPolicy:
+  enabled: true
+  allowFromApps: []         # app labels allowed to connect
+  allowFromCidrs: []        # e.g. VPC CIDR for ALB -> pod traffic
+  allowFromNamespaces: []
+
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}

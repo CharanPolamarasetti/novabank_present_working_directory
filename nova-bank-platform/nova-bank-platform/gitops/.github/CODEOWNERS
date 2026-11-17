@@ -1,0 +1,4 @@
+# Production changes need a human owner's approval (enable "Require review from Code Owners" in branch protection)
+/envs/prod/   @CharanPolamarasetti
+/platform/    @CharanPolamarasetti
+/argocd/      @CharanPolamarasetti

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-dev
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "4"}
+spec:
+  project: default
+  source:
+    repoURL: __GITOPS_REPO_URL__
+    targetRevision: main
+    path: charts/postgres-dev
+    helm: {valueFiles: [../../envs/dev/postgres.yaml]}
+  destination: {server: https://kubernetes.default.svc, namespace: novabank-dev}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
+    retry: {limit: 10, backoff: {duration: 20s, factor: 2, maxDuration: 5m}}

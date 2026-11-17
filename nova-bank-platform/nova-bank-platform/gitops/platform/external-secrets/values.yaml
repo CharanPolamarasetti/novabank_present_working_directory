@@ -1,0 +1,5 @@
+installCRDs: true
+serviceAccount:
+  name: external-secrets
+  annotations:
+    eks.amazonaws.com/role-arn: __ESO_ROLE_ARN__

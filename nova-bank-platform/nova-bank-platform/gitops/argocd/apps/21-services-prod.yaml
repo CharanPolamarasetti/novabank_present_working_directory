@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: services-prod
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - {service: account-service}
+          - {service: customer-service}
+          - {service: frontend}
+  template:
+    metadata:
+      name: '{{service}}-prod'
+    spec:
+      project: default
+      source:
+        repoURL: __GITOPS_REPO_URL__
+        targetRevision: main
+        path: charts/nova-service
+        helm:
+          releaseName: '{{service}}'
+          valueFiles: ['../../envs/prod/{{service}}.yaml']
+      destination: {server: https://kubernetes.default.svc, namespace: novabank-prod}
+      syncPolicy:
+        syncOptions: [CreateNamespace=true]
+        retry: {limit: 10, backoff: {duration: 20s, factor: 2, maxDuration: 5m}}

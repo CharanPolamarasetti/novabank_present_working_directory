@@ -1,0 +1,5 @@
+image: postgres:16-alpine
+storage: 5Gi
+storageClass: auto-ebs-sc
+secretName: postgres-secret
+dbSecretKey: novabank/dev/db

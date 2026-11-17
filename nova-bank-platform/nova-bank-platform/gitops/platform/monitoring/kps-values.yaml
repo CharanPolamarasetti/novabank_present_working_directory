@@ -1,0 +1,60 @@
+fullnameOverride: kps
+defaultRules:
+  rules:
+    etcd: false
+    kubeSchedulerAlerting: false
+    kubeControllerManager: false
+    kubeProxy: false
+# Managed control plane: these components are not scrapeable on EKS
+kubeEtcd: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeProxy: {enabled: false}
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: {cpu: 200m, memory: 768Mi}
+      limits: {memory: 1536Mi}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: auto-ebs-sc
+          accessModes: [ReadWriteOnce]
+          resources: {requests: {storage: 10Gi}}
+
+grafana:
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence: {enabled: false}
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+
+alertmanager:
+  alertmanagerSpec:
+    secrets: [teams-webhook]        # mounted at /etc/alertmanager/secrets/teams-webhook/url
+    resources:
+      requests: {cpu: 20m, memory: 64Mi}
+  config:
+    route:
+      receiver: teams
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - receiver: "null"
+          matchers: ['alertname = "Watchdog"']
+        # Project 2 hook: add a route here that also fans out to the triage-agent webhook receiver.
+    receivers:
+      - name: "null"
+      - name: teams
+        msteamsv2_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/teams-webhook/url
+            send_resolved: true

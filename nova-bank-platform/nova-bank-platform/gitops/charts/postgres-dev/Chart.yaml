@@ -1,0 +1,4 @@
+apiVersion: v2
+name: postgres-dev
+description: In-cluster PostgreSQL for the dev environment only (prod uses RDS)
+version: 1.0.0

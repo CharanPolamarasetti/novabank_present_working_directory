@@ -1,0 +1,78 @@
+// Hardened CI for Spring Boot services (account-service, customer-service).
+// Set SERVICE per branch. Produces ONE immutable image tagged with the git SHA and bumps the dev GitOps values.
+pipeline {
+  agent any
+  options { timestamps(); disableConcurrentBuilds(); timeout(time: 30, unit: 'MINUTES') }
+  parameters { booleanParam(name: 'PUBLISH_NEXUS', defaultValue: false, description: 'Also deploy the jar to Nexus') }
+  environment {
+    SERVICE       = 'account-service'                                   // customer-service on its branch
+    AWS_REGION    = 'ap-south-1'
+    ECR_REGISTRY  = '<ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com'
+    CI_ROLE_ARN   = 'arn:aws:iam::<ACCOUNT_ID>:role/novabank-prod-jenkins-ci'
+    GITOPS_REPO   = 'github.com/CharanPolamarasetti/nova-bank-GitOps.git'
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        script { env.TAG = sh(returnStdout: true, script: 'git rev-parse --short=10 HEAD').trim() }
+      }
+    }
+    stage('Build & Test') { steps { sh 'mvn -B -ntp clean verify' } }
+    stage('SonarQube') {
+      steps { withSonarQubeEnv('novabanksonarqube') { sh 'mvn -B -ntp sonar:sonar' } }
+    }
+    stage('Quality Gate') {
+      steps { timeout(time: 10, unit: 'MINUTES') { waitForQualityGate abortPipeline: true } }
+    }
+    stage('Publish to Nexus') {
+      when { expression { params.PUBLISH_NEXUS } }
+      steps { sh 'mvn -B -ntp deploy -DskipTests' }          // uses the agent's existing settings.xml
+    }
+    stage('Docker Build') {
+      steps { sh 'docker build --pull -t ${ECR_REGISTRY}/novabank/${SERVICE}:${TAG} .' }
+    }
+    stage('Trivy Scan') {
+      steps {
+        // Gate: fail on fixable HIGH/CRITICAL. Report is archived either way.
+        sh '''
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --format table -o trivy-report.txt ${ECR_REGISTRY}/novabank/${SERVICE}:${TAG} || true
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --quiet ${ECR_REGISTRY}/novabank/${SERVICE}:${TAG}
+        '''
+      }
+      post { always { archiveArtifacts artifacts: 'trivy-report.txt', allowEmptyArchive: true } }
+    }
+    stage('Push to ECR') {
+      steps {
+        sh '''
+          # Least privilege: assume the ECR-push-only role instead of using the instance's broad role
+          CREDS=$(aws sts assume-role --role-arn ${CI_ROLE_ARN} --role-session-name jenkins-${BUILD_NUMBER} \
+                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+          export AWS_ACCESS_KEY_ID=$(echo $CREDS | cut -d' ' -f1) AWS_SECRET_ACCESS_KEY=$(echo $CREDS | cut -d' ' -f2) AWS_SESSION_TOKEN=$(echo $CREDS | cut -d' ' -f3)
+          aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+          # Tags are immutable: skip if this SHA was already pushed
+          aws ecr describe-images --repository-name novabank/${SERVICE} --image-ids imageTag=${TAG} >/dev/null 2>&1 \
+            || docker push ${ECR_REGISTRY}/novabank/${SERVICE}:${TAG}
+          aws ecr describe-image-scan-findings --repository-name novabank/${SERVICE} --image-id imageTag=${TAG} \
+            --query 'imageScanFindings.findingSeverityCounts' --output json || true
+        '''
+      }
+    }
+    stage('Update GitOps (dev)') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-gitops', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+          sh '''
+            rm -rf gitops && git clone https://${GH_USER}:${GH_TOKEN}@${GITOPS_REPO} gitops
+            cd gitops
+            git config user.name  "jenkins-bot"
+            git config user.email "jenkins-bot@novabank.local"
+            yq -i '.image.tag = "'${TAG}'"' envs/dev/${SERVICE}.yaml
+            git commit -am "ci(${SERVICE}): dev -> ${TAG} [build ${BUILD_NUMBER}]"
+            git pull --rebase origin main && git push origin HEAD:main
+          '''
+        }
+      }
+    }
+  }
+  post { always { sh 'docker image prune -f || true'; cleanWs() } }
+}

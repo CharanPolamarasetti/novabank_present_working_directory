@@ -1,0 +1,4 @@
+apiVersion: v2
+name: db-init
+description: One-shot Job that creates accountdb/customerdb on RDS using the Secrets Manager credentials
+version: 1.0.0

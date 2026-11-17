@@ -1,0 +1,30 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-allow
+  labels: {{- include "nova.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "nova.selector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.allowFromApps }}
+        - podSelector:
+            matchLabels:
+              app: {{ . }}
+        {{- end }}
+        {{- range .Values.networkPolicy.allowFromCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+        {{- range .Values.networkPolicy.allowFromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.containerPort }}
+          protocol: TCP
+{{- end }}

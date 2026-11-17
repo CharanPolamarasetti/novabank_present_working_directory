@@ -1,0 +1,56 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: novabank-workload
+  namespace: monitoring
+  annotations: {argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true}
+spec:
+  groups:
+    - name: novabank.pods
+      rules:
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace=~"novabank-.*"}[15m]) > 3
+          for: 5m
+          labels: {severity: critical, failure_class: CrashLoopBackOff}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarting repeatedly"}
+        - alert: PodOOMKilled
+          expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled",namespace=~"novabank-.*"} == 1
+          for: 0m
+          labels: {severity: critical, failure_class: OOMKilled}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} OOMKilled"}
+        - alert: PodImagePullFailure
+          expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull",namespace=~"novabank-.*"} == 1
+          for: 3m
+          labels: {severity: critical, failure_class: ImagePullBackOff}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} cannot pull image"}
+        - alert: PodPendingTooLong
+          expr: kube_pod_status_phase{phase="Pending",namespace=~"novabank-.*"} == 1
+          for: 10m
+          labels: {severity: warning, failure_class: Pending}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} Pending >10m"}
+        - alert: PodNotReady
+          expr: kube_pod_status_ready{condition="false",namespace=~"novabank-.*"} == 1
+          for: 5m
+          labels: {severity: warning, failure_class: ProbeFailure}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} not Ready (probe failing?)"}
+    - name: novabank.deployments
+      rules:
+        - alert: DeploymentReplicasMismatch
+          expr: kube_deployment_spec_replicas{namespace=~"novabank-.*"} != kube_deployment_status_replicas_available{namespace=~"novabank-.*"}
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.deployment }} replicas unavailable"}
+        - alert: ContainerMemoryNearLimit
+          expr: |
+            max by (namespace, pod, container) (container_memory_working_set_bytes{namespace=~"novabank-.*",container!=""})
+            / on (namespace, pod, container) max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory",namespace=~"novabank-.*"}) > 0.9
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "{{ $labels.namespace }}/{{ $labels.pod }} memory >90% of limit"}
+    - name: novabank.nodes
+      rules:
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels: {severity: critical}
+          annotations: {summary: "Node {{ $labels.node }} NotReady"}

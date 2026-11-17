@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: db-init-prod
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "4"}
+spec:
+  project: default
+  source:
+    repoURL: __GITOPS_REPO_URL__
+    targetRevision: main
+    path: charts/db-init
+    helm: {valueFiles: [../../envs/prod/db-init.yaml]}
+  destination: {server: https://kubernetes.default.svc, namespace: novabank-prod}
+  syncPolicy:
+    syncOptions: [CreateNamespace=true]     # prod = manual sync

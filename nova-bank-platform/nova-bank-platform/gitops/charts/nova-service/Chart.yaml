@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nova-service
+description: Reusable chart for every Nova Bank microservice (account, customer, frontend)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

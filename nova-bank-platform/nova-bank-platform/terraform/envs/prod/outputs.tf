@@ -1,0 +1,9 @@
+output "cluster_name" { value = module.eks.cluster_name }
+output "ecr_registry" { value = module.ecr.registry }
+output "ecr_repository_urls" { value = module.ecr.repository_urls }
+output "eso_role_arn" { value = module.iam.eso_role_arn }
+output "jenkins_role_arn" { value = module.iam.jenkins_role_arn }
+output "rds_endpoint" { value = module.rds.endpoint_address }
+output "teams_secret_name" { value = module.secrets.teams_webhook_secret_name }
+output "alerts_topic_arn" { value = module.observability.sns_topic_arn }
+output "kubeconfig_cmd" { value = "aws eks update-kubeconfig --name ${module.eks.cluster_name} --region ${var.region}" }
