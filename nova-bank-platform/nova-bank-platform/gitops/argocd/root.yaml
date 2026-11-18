@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: __GITOPS_REPO_URL__
-    targetRevision: main
+    repoURL: https://github.com/CharanPolamarasetti/nova_bank_GitOps.git
+    targetRevision: master
     path: argocd/apps
   destination: {server: https://kubernetes.default.svc, namespace: argocd}
   syncPolicy:
